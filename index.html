@@ -22,16 +22,22 @@
     <div id="container"></div>
 
   <script src="js/third-party/threejs/three.js"></script>
- <!-- <script src="js/third-party/threejs/StereoEffect.js"></script>
-  <script src="js/third-party/threejs/DeviceOrientationControls.js"></script>-->
+  <script src="js/third-party/threejs/StereoEffect.js"></script>
+  <script src="js/third-party/threejs/DeviceOrientationControls.js"></script>-
   <script src="js/third-party/threejs/OrbitControls.js"></script>
   <script src="js/optimer_bold.typeface.js"></script>
   <script src="js/optimer_regular.typeface.js"></script>
+  <script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
 
   <script>
     var camera, scene, renderer;
     var effect, controls;
     var element, container;
+    var marginbottom = 0, chartwidth = 90, chartheight = 30; //3D units
+
+    var xscale = d3.scale.linear().range([0, chartwidth]);
+    var yscale = d3.scale.linear().range([0, chartheight]);
+
 
     var clock = new THREE.Clock();
 
@@ -44,12 +50,12 @@
       container = document.getElementById('container');
       container.appendChild(element);
 
-      // effect = new THREE.StereoEffect(renderer);
+      effect = new THREE.StereoEffect(renderer);
 
       scene = new THREE.Scene();
 
       camera = new THREE.PerspectiveCamera(90, 1, 0.001, 700);
-      camera.position.set(0, 15, 10);
+      camera.position.set(0, 15, 30);
       scene.add(camera);
 
       controls = new THREE.OrbitControls(camera, element);
@@ -80,6 +86,10 @@
 
       var light = new THREE.HemisphereLight(0x777777, 0x000000, 0.6);
       scene.add(light);
+
+      var objlight = new THREE.PointLight(0xffffff, 0.7);
+      objlight.position.set(0, 50, 70);
+      scene.add(objlight);
 
       var texture = THREE.ImageUtils.loadTexture(
         'textures/patterns/yellowchecker.png'
@@ -117,9 +127,77 @@
 
       /////// START CONTENT HERE ////////
 
+      d3.csv('data.csv', population, function(data){
+        xscale.domain([0, data.length - 1]);
+        yscale.domain([0, d3.max(data, function(d){ return d.all; })]);
 
+        var columnwidth = (chartwidth / data.length);
+        columnwidth -= columnwidth * 0.1;
+
+        var columnmaterial = new THREE.MeshPhongMaterial({
+          color: "#FF6347",
+          emissive: "#000000"
+        });
+
+
+        data.forEach(function(d, i, a){
+          var colheight = yscale(d.all);
+          var columngeo = new THREE.BoxGeometry(columnwidth, colheight, columnwidth);
+          var columnmesh = new THREE.Mesh(columngeo, columnmaterial);
+          columnmesh.position.set(xscale(i), colheight/2 + marginbottom, 0); //Box geometry is positioned at its’ center, so we need to move it up by half the height
+
+          scene.add(columnmesh);
+        });
+
+        yscale.ticks(5).forEach(function(t, i, a){
+          //Draw label
+          var label = createType({text: "" + (t/1000000), size: 1.5});
+          var xOffset = ( label.geometry.boundingBox.max.x - label.geometry.boundingBox.min.x );
+          label.position.set(-chartwidth/2 - xOffset - 2.5, yscale(t) + marginbottom - 0.5, 0);
+          scene.add(label);
+
+          //Draw line
+          var lineGeometry = new THREE.Geometry();
+          var vertArray = lineGeometry.vertices;
+          vertArray.push( new THREE.Vector3(-chartwidth/2 - 1.5, yscale(t) + marginbottom, 0),
+                          new THREE.Vector3(chartwidth/2, yscale(t) + marginbottom, 0) );
+          lineGeometry.computeLineDistances();
+          var lineMaterial = new THREE.LineBasicMaterial( { color: 0xaaaaaa } );
+          var line = new THREE.Line( lineGeometry, lineMaterial );
+          scene.add(line);
+
+        });
+
+      });
+
+      function population(d) {
+        d.all = +d.all;
+        d.male = +d.male;
+        d.female = +d.female;
+        return d;
+      }
+
+      var title = createType({text: "U.S. Population By Age, January 2000 in millions"});
+      title.position.set(-chartwidth/2, chartheight + 10, -5);
+      scene.add(title);
+
+      var xzerolabel = createType({text: "0 years old", size: 1.5});
+      xzerolabel.position.set(-chartwidth/2 - 1, 2, 0);
+      scene.add(xzerolabel);
+
+      var x100label = createType({text: "100+ years old", size: 1.5});
+      var xOffset = ( x100label.geometry.boundingBox.max.x - x100label.geometry.boundingBox.min.x );
+      x100label.position.set(chartwidth/2 - xOffset, 2, 0);
+      scene.add(x100label);
+
+      var srctext = createType({text: "Sauce: U.S. Census", size: 1});
+      var xOffset = 0.5 * ( x100label.geometry.boundingBox.max.x - x100label.geometry.boundingBox.min.x );
+      srctext.position.set(0 - xOffset, 1, 0);
+      scene.add(srctext);
 
     }
+
+
 
     function resize() {
       var width = container.offsetWidth;
@@ -142,6 +220,7 @@
 
     function render(dt) {
       renderer.render(scene, camera);
+      // effect.render(scene, camera);
     }
 
     function animate(t) {
@@ -164,13 +243,13 @@
     }
 
     function createType(options) {
-      var height = options.height || 0.1,
-          size = options.size || 3,
-          material = new THREE.MeshFaceMaterial( [
-            new THREE.MeshPhongMaterial( { color: 0xffffff, shading: THREE.FlatShading } ), // front
-            new THREE.MeshPhongMaterial( { color: 0xffffff, shading: THREE.SmoothShading } ) // side
-          ] ),
-          text = options.text || "Test";
+        var height = options.height || 0,
+            size = options.size || 3,
+            material = new THREE.MeshFaceMaterial( [
+              new THREE.MeshPhongMaterial( { color: 0xffffff, shading: THREE.FlatShading } ), // front
+              new THREE.MeshPhongMaterial( { color: 0xffffff, shading: THREE.SmoothShading } ) // side
+            ] ),
+            text = options.text || "Test";
 
       var textGeo = new THREE.TextGeometry( text, {
 

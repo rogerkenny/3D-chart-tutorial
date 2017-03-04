@@ -207,7 +207,7 @@
       camera.updateProjectionMatrix();
 
       renderer.setSize(width, height);
-      // effect.setSize(width, height);
+      effect.setSize(width, height);
     }
 
     function update(dt) {
@@ -220,7 +220,7 @@
 
     function render(dt) {
       renderer.render(scene, camera);
-      // effect.render(scene, camera);
+      effect.render(scene, camera);
     }
 
     function animate(t) {
